@@ -6,14 +6,8 @@
 //
 
 import SwiftUI
-import KeyboardShortcuts
 import AppKit
 import Combine
-
-// MARK: - Keyboard Shortcut Definition
-extension KeyboardShortcuts.Name {
-    static let bringToFront = Self("bringToFront", default: nil)
-}
 
 // MARK: - Main App
 @main
@@ -25,11 +19,10 @@ struct GeminiDesktopApp: App {
     var body: some Scene {
         Window(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
             MainWindowView(coordinator: $coordinator)
-                .toolbarBackground(Color(nsColor: Constants.toolbarColor), for: .windowToolbar)
                 .frame(minWidth: Constants.mainWindowMinWidth, minHeight: Constants.mainWindowMinHeight)
         }
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)
-        .windowToolbarStyle(.unified(showsTitle: false))
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button {
@@ -147,8 +140,9 @@ struct GeminiDesktopApp: App {
         // Apply saved theme on launch
         AppTheme.current.apply()
 
-        KeyboardShortcuts.onKeyDown(for: .bringToFront) { [self] in
-            coordinator.toggleChatBar()
+        let currentCoordinator = coordinator
+        GlobalHotkeyManager.shared.registerDefaultShortcut {
+            currentCoordinator.toggleChatBar()
         }
     }
 }
@@ -163,8 +157,8 @@ extension GeminiDesktopApp {
         static let mainWindowDefaultHeight: CGFloat = 700
 
         // Settings Window
-        static let settingsWindowDefaultWidth: CGFloat = 700
-        static let settingsWindowDefaultHeight: CGFloat = 600
+        static let settingsWindowDefaultWidth: CGFloat = 540
+        static let settingsWindowDefaultHeight: CGFloat = 430
 
         static let mainWindowID = "main"
 

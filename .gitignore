@@ -86,3 +86,7 @@ iOSInjectionProject/
 Share/iOS/.DS_Store
 Share/.DS_Store
 .DS_Store
+Gemini Desktop.app/
+GeminiDesktopBinary
+*.log
+.swiftpm/

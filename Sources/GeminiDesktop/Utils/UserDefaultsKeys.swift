@@ -54,34 +54,39 @@ enum AppTheme: String, CaseIterable {
 }
 
 enum UserAgentOption: String, CaseIterable {
+    case firefox
     case safari
     case chrome
     case custom
 
     var displayName: String {
         switch self {
-        case .safari: return "Safari"
-        case .chrome: return "Chrome"
-        case .custom: return "Custom"
+        case .safari: return "Safari (Nativo / Passkeys)"
+        case .chrome: return "Google Chrome"
+        case .firefox: return "Firefox 128"
+        case .custom: return "Personalizado"
         }
     }
 
-    static let safariUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
-    static let chromeUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+    static let firefoxUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0"
+    static let safariUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15"
+    static let chromeUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
     func userAgentString(custom: String = "") -> String {
         switch self {
+        case .firefox: return Self.firefoxUA
         case .safari: return Self.safariUA
         case .chrome: return Self.chromeUA
-        case .custom: return custom.isEmpty ? Self.safariUA : custom
+        case .custom: return custom.isEmpty ? Self.firefoxUA : custom
         }
     }
 
     func settingsDescription(custom: String = "") -> String {
         switch self {
-        case .safari: return "Identifies as Safari 26.0 on macOS"
-        case .chrome: return "Identifies as Chrome 134 on macOS"
-        case .custom: return custom.isEmpty ? "No custom user agent set — falls back to Safari" : "Using custom user agent string"
+        case .firefox: return "Identifies as Firefox 128"
+        case .safari: return "Identifies as Safari 18.3 on macOS (Supports Touch ID & Passkeys)"
+        case .chrome: return "Identifies as Chrome 131 on macOS"
+        case .custom: return custom.isEmpty ? "No custom user agent set — falls back to Firefox" : "Using custom user agent string"
         }
     }
 

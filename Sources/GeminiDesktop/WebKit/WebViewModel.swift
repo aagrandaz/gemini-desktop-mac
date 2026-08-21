@@ -149,6 +149,10 @@ class WebViewModel {
         webView.allowsLinkPreview = true
         webView.customUserAgent = userAgent
 
+        if #available(macOS 13.3, *) {
+            webView.isInspectable = true
+        }
+
         let savedZoom = UserDefaults.standard.double(forKey: UserDefaultsKeys.pageZoom.rawValue)
         webView.pageZoom = savedZoom > 0 ? savedZoom : defaultPageZoom
 
@@ -181,6 +185,13 @@ class WebViewModel {
                 guard let self = self else { return }
                 guard let currentURL = webView.url else { return }
 
+                // Force Safari UA during Google Login to support Passkeys and bypass security blocks
+                if currentURL.host?.contains("accounts.google.com") == true {
+                    if webView.customUserAgent != UserAgentOption.safariUA {
+                        webView.customUserAgent = UserAgentOption.safariUA
+                    }
+                }
+
                 let isGeminiApp = currentURL.host == Self.geminiHost &&
                                   currentURL.path.hasPrefix(Self.geminiAppPath)
 
@@ -193,5 +204,12 @@ class WebViewModel {
                 }
             }
         }
+    }
+
+    deinit {
+        backObserver?.invalidate()
+        forwardObserver?.invalidate()
+        loadingObserver?.invalidate()
+        urlObserver?.invalidate()
     }
 }

@@ -105,9 +105,10 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
     private func configureWindow() {
         isFloatingPanel = true
-        level = .floating
+        level = .popUpMenu
         isMovable = true
         isMovableByWindowBackground = false
+        hidesOnDeactivate = false
 
         collectionBehavior.insert(.fullScreenAuxiliary)
         collectionBehavior.insert(.canJoinAllSpaces)
@@ -137,8 +138,8 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
             contentView.wantsLayer = true
             contentView.layer?.cornerRadius = Constants.cornerRadius
             contentView.layer?.masksToBounds = true
-            contentView.layer?.borderWidth = Constants.borderWidth
-            contentView.layer?.borderColor = NSColor.separatorColor.cgColor
+            contentView.layer?.borderWidth = 1.0
+            contentView.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.4).cgColor
         }
     }
 
@@ -180,8 +181,8 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
         let clampedHeight = max(targetHeight, initialSize.height) // Don't shrink below initial size
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = Constants.animationDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.duration = 0.35
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
 
             let newFrame = NSRect(
                 x: currentFrame.origin.x,

@@ -50,6 +50,7 @@ enum UserScripts {
     /// JavaScript to bridge console.log to native Swift via WKScriptMessageHandler
     private static let consoleLogBridgeSource = """
     (function() {
+        if (window.location.hostname.includes('accounts.google.com')) return;
         const originalLog = console.log;
         console.log = function(...args) {
             originalLog.apply(console, args);
@@ -67,13 +68,10 @@ enum UserScripts {
     """
 
     /// JavaScript to fix IME Enter issue on Gemini
-    /// When using IME (e.g., Chinese/Japanese input), pressing Enter to confirm
-    /// the IME composition should NOT send the message. This script intercepts
-    /// Enter keydown events during and immediately after IME composition,
-    /// preventing them from reaching Gemini's send handler.
     private static let imeFixSource = """
     (function() {
         'use strict';
+        if (window.location.hostname.includes('accounts.google.com')) return;
 
         let imeActive = false;
         let imeEverUsed = false;

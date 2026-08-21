@@ -58,6 +58,7 @@ class WindowDragNSView: NSView {
 struct ChatBarView: View {
     let webView: WKWebView
     let onExpandToMain: () -> Void
+    @State private var isHoveringExpand = false
 
     /// Calculate button offset based on screen height
     /// MacBook Air 13" (~900pt): (-6, -2), 1080p (1080pt): (-4, 0)
@@ -77,15 +78,30 @@ struct ChatBarView: View {
             // Expand button
             Button(action: onExpandToMain) {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 38, height: 38)
-                    .background(.ultraThinMaterial, in: Circle())
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isHoveringExpand ? .primary : .secondary)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .shadow(color: .black.opacity(isHoveringExpand ? 0.25 : 0.1), radius: isHoveringExpand ? 6 : 3, x: 0, y: 2)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(isHoveringExpand ? 0.4 : 0.15), lineWidth: 1)
+                    )
+                    .scaleEffect(isHoveringExpand ? 1.08 : 1.0)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .onHover { isHovering in
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                    isHoveringExpand = isHovering
+                }
+            }
             .padding(16)
             .offset(buttonOffset)
+            .help("Maximizar a Ventana Principal")
 
             // Invisible drag region in the top bar (between Gemini text and PRO badge)
             VStack {
