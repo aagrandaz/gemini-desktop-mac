@@ -64,6 +64,12 @@ class WebViewModel {
         wkWebView.load(URLRequest(url: Self.geminiURL))
     }
 
+    func loadURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        isAtHome = false
+        wkWebView.load(URLRequest(url: url))
+    }
+
     func goBack() {
         isAtHome = false
         wkWebView.goBack()
@@ -93,6 +99,30 @@ class WebViewModel {
             });
             document.activeElement.dispatchEvent(event);
             document.dispatchEvent(event);
+        })();
+        """
+        wkWebView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
+    func submitPrompt(_ text: String) {
+        guard let jsonString = try? String(data: JSONEncoder().encode(text), encoding: .utf8) else { return }
+        let script = """
+        (function() {
+            const promptText = \(jsonString);
+            const input = document.querySelector('rich-textarea p') || document.querySelector('textarea') || document.querySelector('[contenteditable="true"]');
+            if (input) {
+                input.focus();
+                if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+                    input.value = promptText;
+                } else {
+                    input.textContent = promptText;
+                }
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                setTimeout(() => {
+                    const sendBtn = document.querySelector('button[aria-label*="Enviar"]') || document.querySelector('button.send-button') || document.querySelector('button[aria-label*="Send"]');
+                    if (sendBtn) sendBtn.click();
+                }, 300);
+            }
         })();
         """
         wkWebView.evaluateJavaScript(script, completionHandler: nil)

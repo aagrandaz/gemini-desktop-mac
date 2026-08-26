@@ -24,83 +24,153 @@ struct GeminiDesktopApp: App {
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)
         .windowToolbarStyle(.unifiedCompact)
         .commands {
+            // Archivo Menu
             CommandGroup(replacing: .newItem) {
-                Button {
+                Button("Nuevo chat") {
                     coordinator.openNewChat()
-                } label: {
-                    Label("New Chat", systemImage: "plus")
                 }
                 .keyboardShortcut("n", modifiers: .command)
-            }
 
-            CommandGroup(after: .toolbar) {
-                Button {
-                    coordinator.goBack()
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
+                Button("Nuevo chat temporal") {
+                    coordinator.loadURL("https://gemini.google.com/app?temporary=true")
                 }
-                .keyboardShortcut("[", modifiers: .command)
-                .disabled(!coordinator.canGoBack)
-
-                Button {
-                    coordinator.goForward()
-                } label: {
-                    Label("Forward", systemImage: "chevron.right")
-                }
-                .keyboardShortcut("]", modifiers: .command)
-                .disabled(!coordinator.canGoForward)
-
-                Button {
-                    coordinator.goHome()
-                } label: {
-                    Label("Go Home", systemImage: "house")
-                }
-                .keyboardShortcut("h", modifiers: [.command, .shift])
+                .keyboardShortcut("n", modifiers: [.command, .shift])
 
                 Divider()
 
-                Button {
+                Button("Abrir chat pequeño") {
+                    coordinator.showChatBar()
+                }
+
+                Button("Abrir app") {
+                    coordinator.bringMainWindowToFront()
+                }
+            }
+
+            // Edición Menu
+            CommandGroup(after: .pasteboard) {
+                Divider()
+
+                Button("Modelo siguiente") {
+                    // Quick model switcher
+                }
+                .keyboardShortcut("}", modifiers: [.command, .shift])
+
+                Button("Modelo anterior") {
+                    // Quick model switcher
+                }
+                .keyboardShortcut("{", modifiers: [.command, .shift])
+            }
+
+            // Visualización Menu
+            CommandGroup(after: .toolbar) {
+                Button("Activar o desactivar la barra lateral") {
+                    NotificationCenter.default.post(name: .init("ToggleSidebar"), object: nil)
+                }
+                .keyboardShortcut("s", modifiers: [.command, .control])
+
+                Button("Activar o desactivar el chat pequeño") {
+                    coordinator.toggleChatBar()
+                }
+
+                Button("Volver a cargar") {
                     coordinator.reload()
-                } label: {
-                    Label("Reload Page", systemImage: "arrow.clockwise")
                 }
                 .keyboardShortcut("r", modifiers: .command)
 
                 Divider()
 
-                Button {
-                    coordinator.toggleAlwaysOnTop()
-                } label: {
-                    if coordinator.alwaysOnTop {
-                        Label("Always on Top ✓", systemImage: "pin.fill")
-                    } else {
-                        Label("Always on Top", systemImage: "pin")
-                    }
-                }
-                .keyboardShortcut("t", modifiers: [.command, .shift])
-
-                Divider()
-
-                Button {
+                Button("Aumentar el tamaño del texto") {
                     coordinator.zoomIn()
-                } label: {
-                    Label("Zoom In", systemImage: "plus.magnifyingglass")
                 }
                 .keyboardShortcut("+", modifiers: .command)
 
-                Button {
+                Button("Cambiar texto al tamaño normal") {
+                    coordinator.resetZoom()
+                }
+                .keyboardShortcut("0", modifiers: .command)
+
+                Button("Reducir el tamaño del texto") {
                     coordinator.zoomOut()
-                } label: {
-                    Label("Zoom Out", systemImage: "minus.magnifyingglass")
                 }
                 .keyboardShortcut("-", modifiers: .command)
 
-                Button {
-                    coordinator.resetZoom()
-                } label: {
-                    Label("Actual Size", systemImage: "1.magnifyingglass")
+                Divider()
+
+                Button("Página anterior") {
+                    coordinator.goBack()
                 }
-                .keyboardShortcut("0", modifiers: .command)
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(!coordinator.canGoBack)
+
+                Button("Página siguiente") {
+                    coordinator.goForward()
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(!coordinator.canGoForward)
+
+                Divider()
+
+                Button(coordinator.alwaysOnTop ? "Desactivar Siempre al Frente" : "Mantener Siempre al Frente") {
+                    coordinator.toggleAlwaysOnTop()
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+            }
+
+            // Custom Chats Menu
+            CommandMenu("Chats") {
+                Section("Recientes") {
+                    Button("Anteproyecto: Microservicio PLN") {
+                        coordinator.loadURL("https://gemini.google.com/app")
+                    }
+                    .keyboardShortcut("1", modifiers: .command)
+
+                    Button("Diseño y Planos Mueble TV") {
+                        coordinator.loadURL("https://gemini.google.com/app")
+                    }
+                    .keyboardShortcut("2", modifiers: .command)
+                }
+
+                Divider()
+
+                Button("Ver todos los chats") {
+                    coordinator.loadURL("https://gemini.google.com/app")
+                }
+
+                Button("Buscar...") {
+                    // Search in chats
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+            }
+
+            // Ayuda Menu
+            CommandGroup(replacing: .help) {
+                Button("Ayuda de Gemini") {
+                    if let url = URL(string: "https://support.google.com/gemini") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+
+                Button("Enviar comentarios") {
+                    if let url = URL(string: "https://gemini.google.com/feedback") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Política de Privacidad") {
+                    if let url = URL(string: "https://policies.google.com/privacy") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+
+                Button("Condiciones del Servicio") {
+                    if let url = URL(string: "https://policies.google.com/terms") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
             }
         }
 
@@ -151,28 +221,17 @@ struct GeminiDesktopApp: App {
 extension GeminiDesktopApp {
     struct Constants {
         // Main Window
-        static let mainWindowMinWidth: CGFloat = 400
-        static let mainWindowMinHeight: CGFloat = 300
-        static let mainWindowDefaultWidth: CGFloat = 1000
-        static let mainWindowDefaultHeight: CGFloat = 700
+        static let mainWindowMinWidth: CGFloat = 800
+        static let mainWindowMinHeight: CGFloat = 550
+        static let mainWindowDefaultWidth: CGFloat = 1100
+        static let mainWindowDefaultHeight: CGFloat = 750
 
         // Settings Window
-        static let settingsWindowDefaultWidth: CGFloat = 540
-        static let settingsWindowDefaultHeight: CGFloat = 430
+        static let settingsWindowDefaultWidth: CGFloat = 720
+        static let settingsWindowDefaultHeight: CGFloat = 480
 
         static let mainWindowID = "main"
-
-        // Appearance
-        static let toolbarColor: NSColor = NSColor(name: nil) { appearance in
-            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(red: 43.0/255.0, green: 43.0/255.0, blue: 43.0/255.0, alpha: 1.0)
-            } else {
-                return NSColor(red: 238.0/255.0, green: 241.0/255.0, blue: 247.0/255.0, alpha: 1.0)
-            }
-        }
         static let menuBarIcon = "sparkle"
-
-        // Timing
         static let hideWindowDelay: TimeInterval = 0.1
     }
 }

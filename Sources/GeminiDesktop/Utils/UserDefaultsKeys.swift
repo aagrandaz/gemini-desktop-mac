@@ -21,6 +21,23 @@ enum UserDefaultsKeys: String {
     case panelX
     case panelY
     case alwaysOnTop
+
+    // Spark & Modern Settings Keys
+    case sidebarMode
+    case showInMenuBar
+    case openAtLogin
+    case sparkRemoteTasksEnabled
+    case sparkKeepMacAwake
+    case sparkBackupAlertEnabled
+    case memoryEnabled
+    case voiceSelection
+    case speakToWindowReasoning
+    case appGoogleWorkspaceEnabled
+    case appSearchServicesEnabled
+    case appGooglePhotosEnabled
+    case appYouTubeEnabled
+    case connectedFoldersData
+    case debugTelemetryEnabled
 }
 
 enum AppTheme: String, CaseIterable {
@@ -30,9 +47,9 @@ enum AppTheme: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .system: return "System"
-        case .light: return "Light"
-        case .dark: return "Dark"
+        case .system: return "Sistema"
+        case .light: return "Claro"
+        case .dark: return "Oscuro"
         }
     }
 
@@ -54,9 +71,9 @@ enum AppTheme: String, CaseIterable {
 }
 
 enum UserAgentOption: String, CaseIterable {
-    case firefox
     case safari
     case chrome
+    case firefox
     case custom
 
     var displayName: String {
@@ -110,10 +127,10 @@ enum PanelPosition: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .bottomLeft: return "Bottom Left"
-        case .bottomCenter: return "Bottom Center"
-        case .bottomRight: return "Bottom Right"
-        case .rememberLast: return "Remember Last Position"
+        case .bottomLeft: return "Parte inferior izquierda"
+        case .bottomCenter: return "Parte inferior"
+        case .bottomRight: return "Parte inferior derecha"
+        case .rememberLast: return "Recordar última posición"
         }
     }
 

@@ -38,6 +38,8 @@ class AppCoordinator {
     func goHome() { webViewModel.loadHome() }
     func reload() { webViewModel.reload() }
     func openNewChat() { webViewModel.openNewChat() }
+    func loadURL(_ urlString: String) { webViewModel.loadURL(urlString) }
+    func submitPrompt(_ text: String) { webViewModel.submitPrompt(text) }
 
     // MARK: - Zoom
 
@@ -62,6 +64,12 @@ class AppCoordinator {
         }
 
         // Chat bar panel is always floating by design
+    }
+
+    // MARK: - Window Management
+
+    func bringMainWindowToFront() {
+        openMainWindow()
     }
 
     // MARK: - Chat Bar
@@ -223,13 +231,10 @@ class AppCoordinator {
     }
 }
 
-
 extension AppCoordinator {
-
     struct Constants {
         static let dockOffset: CGFloat = 50
         static let mainWindowIdentifier = "main"
         static let mainWindowTitle = "Gemini Desktop"
     }
-
 }
