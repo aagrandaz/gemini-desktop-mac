@@ -16,7 +16,8 @@ enum UserScripts {
     /// Creates all user scripts to be injected into the WebView
     static func createAllScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = [
-            createIMEFixScript()
+            createIMEFixScript(),
+            createWindowDragScript()
         ]
 
         #if DEBUG
@@ -36,10 +37,41 @@ enum UserScripts {
     }
 
     /// Creates the IME fix script that resolves the double-enter issue
-    /// when using input method editors (e.g., Chinese, Japanese, Korean input)
     private static func createIMEFixScript() -> WKUserScript {
         WKUserScript(
             source: imeFixSource,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+    }
+
+    /// Injects CSS and JS for native macOS traffic lights and draggable titlebar area
+    private static func createWindowDragScript() -> WKUserScript {
+        let source = """
+        (function() {
+            if (window.location.hostname.includes('accounts.google.com')) return;
+
+            const style = document.createElement('style');
+            style.textContent = `
+                /* Allow dragging from top navigation bar */
+                header, nav[role="navigation"], .app-header {
+                    -webkit-app-region: drag;
+                    user-select: none;
+                }
+                /* Interactive elements in header remain clickable */
+                header button, header a, header input, nav button, nav a {
+                    -webkit-app-region: no-drag;
+                }
+                /* Adjust top padding so traffic lights don't obstruct web buttons */
+                body {
+                    -webkit-font-smoothing: antialiased;
+                }
+            `;
+            document.head.appendChild(style);
+        })();
+        """
+        return WKUserScript(
+            source: source,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: true
         )

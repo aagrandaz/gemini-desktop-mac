@@ -22,7 +22,7 @@ struct GeminiDesktopApp: App {
                 .frame(minWidth: Constants.mainWindowMinWidth, minHeight: Constants.mainWindowMinHeight)
         }
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)
-        .windowToolbarStyle(.unifiedCompact)
+        .windowStyle(.hiddenTitleBar)
         .commands {
             // Archivo Menu
             CommandGroup(replacing: .newItem) {
