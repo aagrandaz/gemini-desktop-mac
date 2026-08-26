@@ -7,12 +7,49 @@
 
 import WebKit
 import Combine
+import AppKit
 
-/// Handles console.log messages from JavaScript
-class ConsoleLogHandler: NSObject, WKScriptMessageHandler {
+/// Handles script messages from JavaScript
+class WebScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var webViewModel: WebViewModel?
+
+    init(webViewModel: WebViewModel?) {
+        self.webViewModel = webViewModel
+    }
+
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if let body = message.body as? String {
-            print("[WebView] \(body)")
+        if message.name == UserScripts.consoleLogHandler {
+            if let body = message.body as? String {
+                print("[WebView] \(body)")
+            }
+        } else if message.name == UserScripts.sparkFolderHandler {
+            guard let body = message.body as? [String: Any],
+                  let action = body["action"] as? String else { return }
+
+            Task { @MainActor in
+                guard let vm = self.webViewModel else { return }
+                switch action {
+                case "addFolder":
+                    LocalFolderManager.shared.addFolderFromPicker()
+                    vm.syncConnectedFoldersToWeb()
+                case "removeFolder":
+                    if let idString = body["id"] as? String, let id = UUID(uuidString: idString) {
+                        LocalFolderManager.shared.removeFolder(id: id)
+                        vm.syncConnectedFoldersToWeb()
+                    }
+                case "getConnectedFolders":
+                    vm.syncConnectedFoldersToWeb()
+                case "attachFolderContext":
+                    if let idString = body["id"] as? String, let id = UUID(uuidString: idString) {
+                        if let folder = LocalFolderManager.shared.folders.first(where: { $0.id == id }) {
+                            let summary = LocalFolderManager.shared.generateContextSummary(for: folder)
+                            vm.submitPrompt("Contexto de la carpeta conectada '\(folder.name)':\n\(summary)\n")
+                        }
+                    }
+                default:
+                    break
+                }
+            }
         }
     }
 }
@@ -46,12 +83,15 @@ class WebViewModel {
     private var forwardObserver: NSKeyValueObservation?
     private var urlObserver: NSKeyValueObservation?
     private var loadingObserver: NSKeyValueObservation?
-    private let consoleLogHandler = ConsoleLogHandler()
+    private var scriptHandler: WebScriptMessageHandler?
 
     // MARK: - Initialization
 
     init() {
-        self.wkWebView = Self.createWebView(consoleLogHandler: consoleLogHandler)
+        let handler = WebScriptMessageHandler(webViewModel: nil)
+        self.wkWebView = Self.createWebView(scriptHandler: handler)
+        self.scriptHandler = handler
+        handler.webViewModel = self
         setupObservers()
         loadHome()
     }
@@ -128,6 +168,24 @@ class WebViewModel {
         wkWebView.evaluateJavaScript(script, completionHandler: nil)
     }
 
+    @MainActor
+    func syncConnectedFoldersToWeb() {
+        let folders = LocalFolderManager.shared.folders
+        let items: [[String: Any]] = folders.map { folder in
+            [
+                "id": folder.id.uuidString,
+                "name": folder.name,
+                "path": folder.path,
+                "fileCount": folder.fileCount
+            ]
+        }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: items),
+              let jsonString = String(data: jsonData, encoding: .utf8) else { return }
+
+        let script = "window.__updateConnectedFolders && window.__updateConnectedFolders(\(jsonString));"
+        wkWebView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
     // MARK: - Zoom
 
     func zoomIn() {
@@ -158,7 +216,7 @@ class WebViewModel {
 
     // MARK: - Private Setup
 
-    private static func createWebView(consoleLogHandler: ConsoleLogHandler) -> WKWebView {
+    private static func createWebView(scriptHandler: WebScriptMessageHandler) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
@@ -169,10 +227,11 @@ class WebViewModel {
             configuration.userContentController.addUserScript(script)
         }
 
-        // Register console log message handler (debug only)
+        // Register message handlers
         #if DEBUG
-        configuration.userContentController.add(consoleLogHandler, name: UserScripts.consoleLogHandler)
+        configuration.userContentController.add(scriptHandler, name: UserScripts.consoleLogHandler)
         #endif
+        configuration.userContentController.add(scriptHandler, name: UserScripts.sparkFolderHandler)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.allowsBackForwardNavigationGestures = true
@@ -206,7 +265,11 @@ class WebViewModel {
 
         loadingObserver = wkWebView.observe(\.isLoading, options: [.new, .initial]) { [weak self] webView, _ in
             DispatchQueue.main.async {
-                self?.isLoading = webView.isLoading
+                guard let self = self else { return }
+                self.isLoading = webView.isLoading
+                if !webView.isLoading {
+                    self.syncConnectedFoldersToWeb()
+                }
             }
         }
 
