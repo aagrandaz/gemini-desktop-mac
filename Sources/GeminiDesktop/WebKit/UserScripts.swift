@@ -55,17 +55,25 @@ enum UserScripts {
 
             const style = document.createElement('style');
             style.textContent = `
-                /* Allow dragging from top navigation bar */
+                /* Traffic light spacing at top of sidebar */
+                bard-sidenav, side-navigation, side-navigation-v2, [role="navigation"], .side-nav, aside {
+                    padding-top: 36px !important;
+                }
+
+                /* Draggable top header area */
                 header, nav[role="navigation"], .app-header {
                     -webkit-app-region: drag;
                     user-select: none;
                 }
-                /* Interactive elements in header remain clickable */
-                header button, header a, header input, nav button, nav a {
+
+                /* Interactive elements remain clickable */
+                header button, header a, header input, nav button, nav a, bard-sidenav button, bard-sidenav a {
                     -webkit-app-region: no-drag;
                 }
-                /* Adjust font smoothing */
-                body {
+
+                /* Native font and emoji rendering for NotebookLM and chats */
+                body, button, input, textarea, select {
+                    font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Apple Color Emoji', 'Segoe UI', Roboto, sans-serif !important;
                     -webkit-font-smoothing: antialiased;
                 }
             `;
@@ -79,7 +87,7 @@ enum UserScripts {
         )
     }
 
-    /// Injects the Spark connected folders UI and native macOS folder picker bridge
+    /// Injects the Spark connected folders UI inside the sidebar and bridges to native macOS folder picker
     private static func createSparkFolderBridgeScript() -> WKUserScript {
         let source = """
         (function() {
@@ -106,21 +114,49 @@ enum UserScripts {
                 return hasSparkKeywords;
             }
 
-            function findSidebarInsertionPoint() {
-                // Find container with Personalizar / Habilidades / Apps conectadas
-                const candidates = document.querySelectorAll('nav, [role="navigation"], .side-nav, .mat-drawer-inner-container, bard-sidenav, .sidebar, [class*="side-nav"], [class*="sidebar"]');
-                for (const nav of candidates) {
-                    if (nav.innerText.includes('Personalizar') || nav.innerText.includes('Habilidades') || nav.innerText.includes('Apps conectadas') || nav.innerText.includes('Aplicaciones conectadas') || nav.innerText.includes('Tareas')) {
-                        return nav;
+            function findSidebarInsertionTarget() {
+                // Find all text elements containing Spark sidebar section keywords
+                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                let textNode;
+                const matches = [];
+
+                while (textNode = walker.nextNode()) {
+                    const val = textNode.nodeValue.trim();
+                    if (val === 'Aplicaciones conectadas' || 
+                        val === 'Apps conectadas' || 
+                        val === 'Habilidades' || 
+                        val === 'Actividades programadas' || 
+                        val === 'Programaciones') {
+                        matches.push(textNode.parentElement);
                     }
                 }
-                // Fallback: Find parent of element containing 'Aplicaciones conectadas' or 'Apps conectadas'
-                const allElements = document.querySelectorAll('div, section, mat-nav-list, ul');
-                for (const el of allElements) {
-                    if ((el.innerText.includes('Apps conectadas') || el.innerText.includes('Aplicaciones conectadas')) && el.children.length >= 1) {
-                        return el.parentElement || el;
+
+                for (const el of matches) {
+                    // Find the row element inside the sidebar list
+                    const row = el.closest('a, button, [role="listitem"], mat-list-item, li, div') || el;
+                    const rect = row.getBoundingClientRect();
+                    // Must be inside the left sidebar column (x < 400 and width < 450)
+                    if (rect.left < 400 && rect.width > 0 && rect.width < 450 && rect.top > 0) {
+                        return {
+                            parent: row.parentElement,
+                            referenceNode: row.nextSibling
+                        };
                     }
                 }
+
+                // Fallback: Left sidebar column container
+                const sidebars = document.querySelectorAll('bard-sidenav, side-navigation-v2, side-navigation, [role="navigation"], aside, .side-nav');
+                for (const sb of sidebars) {
+                    const rect = sb.getBoundingClientRect();
+                    if (rect.left < 50 && rect.width > 150 && rect.width < 450) {
+                        const targetContainer = sb.querySelector('.scrollable-container, .middle-section, mat-nav-list, ul') || sb;
+                        return {
+                            parent: targetContainer,
+                            referenceNode: null
+                        };
+                    }
+                }
+
                 return null;
             }
 
@@ -145,7 +181,7 @@ enum UserScripts {
                             </div>
                         </div>
                         <div class="folder-actions">
-                            <button class="folder-action-btn folder-insert-btn" title="Adjuntar contexto de carpeta" data-id="${folder.id}">➕</button>
+                            <button class="folder-action-btn folder-insert-btn" title="Adjuntar contexto al prompt" data-id="${folder.id}">➕</button>
                             <button class="folder-action-btn folder-delete-btn" title="Eliminar de carpetas conectadas" data-id="${folder.id}">✕</button>
                         </div>
                     </div>`;
@@ -185,20 +221,27 @@ enum UserScripts {
             }
 
             function injectConnectedFoldersUI() {
+                const existing = document.getElementById('gemini-mac-folders-section');
+
                 if (!isSparkMode()) {
-                    const existing = document.getElementById('gemini-mac-folders-section');
                     if (existing) existing.style.display = 'none';
                     return;
                 }
 
-                let existing = document.getElementById('gemini-mac-folders-section');
                 if (existing) {
                     existing.style.display = 'block';
-                    return;
+                    // Verify that it is still properly positioned in the sidebar
+                    const rect = existing.getBoundingClientRect();
+                    if (rect.left < 400 && rect.width < 450) {
+                        return;
+                    } else {
+                        // If it got misplaced to the bottom, remove and reinsert
+                        existing.remove();
+                    }
                 }
 
-                const nav = findSidebarInsertionPoint();
-                if (!nav) return;
+                const target = findSidebarInsertionTarget();
+                if (!target || !target.parent) return;
 
                 const section = document.createElement('div');
                 section.id = 'gemini-mac-folders-section';
@@ -212,7 +255,11 @@ enum UserScripts {
                     <div id="gemini-mac-folders-list" class="gemini-mac-folders-list"></div>
                 `;
 
-                nav.appendChild(section);
+                if (target.referenceNode) {
+                    target.parent.insertBefore(section, target.referenceNode);
+                } else {
+                    target.parent.appendChild(section);
+                }
 
                 const addBtn = document.getElementById('gemini-add-mac-folder-btn');
                 if (addBtn) {
@@ -233,65 +280,72 @@ enum UserScripts {
                 renderFolders();
             }
 
-            // Styles
+            // Styles matching exact Gemini dark mode & Apple Silicon UI
             const style = document.createElement('style');
             style.textContent = `
                 .gemini-mac-folders-section {
-                    margin-top: 16px;
-                    margin-bottom: 20px;
-                    padding: 0 12px;
-                    font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    margin-top: 14px;
+                    margin-bottom: 16px;
+                    padding: 0 8px;
+                    box-sizing: border-box;
+                    width: 100%;
+                    max-width: 280px;
                 }
                 .gemini-mac-folders-title {
-                    font-size: 13px;
+                    font-size: 12px;
                     font-weight: 500;
                     color: #c4c7c5;
-                    padding: 4px 8px 8px 8px;
+                    padding: 4px 12px 6px 12px;
                     letter-spacing: 0.2px;
+                    user-select: none;
                 }
                 .gemini-add-mac-folder-btn {
                     display: flex;
                     align-items: center;
-                    width: 100%;
-                    height: 38px;
-                    padding: 0 16px;
-                    background: rgba(255, 255, 255, 0.06);
+                    width: calc(100% - 16px);
+                    height: 36px;
+                    margin: 2px 8px;
+                    padding: 0 14px;
+                    background: rgba(255, 255, 255, 0.05);
                     border: 1px solid rgba(255, 255, 255, 0.08);
-                    border-radius: 19px;
+                    border-radius: 18px;
                     color: #e3e3e3;
                     font-size: 13px;
                     font-weight: 500;
                     cursor: pointer;
-                    transition: all 0.15s ease-in-out;
+                    transition: all 0.15s ease;
                     box-sizing: border-box;
                     outline: none;
+                    text-align: left;
                 }
                 .gemini-add-mac-folder-btn:hover {
                     background: rgba(255, 255, 255, 0.12);
                     color: #ffffff;
-                    border-color: rgba(255, 255, 255, 0.2);
+                    border-color: rgba(255, 255, 255, 0.18);
                     transform: translateY(-1px);
                 }
                 .gemini-add-mac-folder-btn .plus-icon {
-                    font-size: 17px;
+                    font-size: 16px;
                     margin-right: 8px;
                     font-weight: 400;
                     color: #a8c7fa;
                 }
                 .gemini-mac-folders-list {
-                    margin-top: 10px;
+                    margin-top: 8px;
                     display: flex;
                     flex-direction: column;
-                    gap: 6px;
+                    gap: 4px;
+                    padding: 0 4px;
                 }
                 .gemini-mac-folder-item {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    padding: 8px 12px;
+                    padding: 6px 10px;
+                    margin: 0 4px;
                     background: rgba(255, 255, 255, 0.03);
                     border: 1px solid rgba(255, 255, 255, 0.05);
-                    border-radius: 12px;
+                    border-radius: 10px;
                     cursor: pointer;
                     transition: all 0.15s ease;
                 }
@@ -302,11 +356,11 @@ enum UserScripts {
                 .gemini-mac-folder-item .folder-info {
                     display: flex;
                     align-items: center;
-                    gap: 10px;
+                    gap: 8px;
                     overflow: hidden;
                 }
                 .gemini-mac-folder-item .folder-icon {
-                    font-size: 16px;
+                    font-size: 15px;
                 }
                 .gemini-mac-folder-item .folder-text {
                     display: flex;
@@ -314,22 +368,23 @@ enum UserScripts {
                     overflow: hidden;
                 }
                 .gemini-mac-folder-item .folder-name {
-                    font-size: 13px;
+                    font-size: 12px;
                     font-weight: 500;
                     color: #e3e3e3;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    max-width: 140px;
                 }
                 .gemini-mac-folder-item .folder-count {
-                    font-size: 11px;
+                    font-size: 10px;
                     color: #8e918f;
                 }
                 .gemini-mac-folder-item .folder-actions {
                     display: flex;
                     align-items: center;
-                    gap: 4px;
-                    opacity: 0.6;
+                    gap: 2px;
+                    opacity: 0.5;
                     transition: opacity 0.15s ease;
                 }
                 .gemini-mac-folder-item:hover .folder-actions {
@@ -340,9 +395,9 @@ enum UserScripts {
                     border: none;
                     color: #c4c7c5;
                     cursor: pointer;
-                    padding: 4px;
-                    border-radius: 6px;
-                    font-size: 12px;
+                    padding: 3px 5px;
+                    border-radius: 4px;
+                    font-size: 11px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -354,7 +409,7 @@ enum UserScripts {
             `;
             document.head.appendChild(style);
 
-            // Continuous observation of DOM changes
+            // MutationObserver to maintain correct sidebar placement
             const observer = new MutationObserver(function() {
                 injectConnectedFoldersUI();
             });
@@ -362,8 +417,8 @@ enum UserScripts {
             observer.observe(document.body, { childList: true, subtree: true });
 
             setTimeout(injectConnectedFoldersUI, 500);
-            setTimeout(injectConnectedFoldersUI, 1500);
-            setTimeout(injectConnectedFoldersUI, 3000);
+            setTimeout(injectConnectedFoldersUI, 1200);
+            setTimeout(injectConnectedFoldersUI, 2500);
         })();
         """
         return WKUserScript(
