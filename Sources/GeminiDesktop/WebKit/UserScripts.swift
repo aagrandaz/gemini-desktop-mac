@@ -55,36 +55,60 @@ enum UserScripts {
 
             const style = document.createElement('style');
             style.textContent = `
-                /* Safe area top padding for macOS titlebar & traffic lights across the entire window */
-                html, body {
-                    padding-top: 32px !important;
-                    box-sizing: border-box !important;
-                    height: 100vh !important;
-                    overflow-x: hidden !important;
+                :root {
+                    --macos-titlebar-height: 42px;
                 }
 
-                /* Ensure all content containers adjust to full height minus top titlebar */
-                body > * {
+                /* Safe Area for macOS title bar across standard and absolute/fixed containers */
+                html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100vw !important;
+                    height: 100vh !important;
+                    overflow: hidden !important;
+                    box-sizing: border-box !important;
+                    background-color: #131314 !important;
+                }
+
+                /* Push Sidebar below traffic lights so there is ZERO collision */
+                bard-sidenav, side-navigation, side-navigation-v2, [role="navigation"], .side-nav, mat-sidenav, aside {
+                    top: var(--macos-titlebar-height) !important;
+                    height: calc(100vh - var(--macos-titlebar-height)) !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* Push Main Content / Chat Pane below title bar so all task badges and headers are fully visible */
+                header, [role="banner"], .app-header, main, [role="main"], .main-content, .chat-window, mat-sidenav-content, .chat-history {
+                    top: var(--macos-titlebar-height) !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* Responsive Auto-adjust Layout according to macOS SDK & HIG */
+                main, [role="main"], .main-content, .chat-window, .infinite-scroller, .chat-history, .conversation-container {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* Center chat conversation container smoothly */
+                .conversation-container, .chat-history, .infinite-scroller {
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    max-width: min(100%, 960px) !important;
                     box-sizing: border-box !important;
                 }
 
                 /* Draggable top header area matching macOS HIG */
-                header, nav[role="navigation"], .app-header, [class*="top-bar"] {
+                header, nav[role="navigation"], .app-header, [class*="top-bar"], [role="banner"] {
                     -webkit-app-region: drag;
                     user-select: none;
                 }
 
-                /* Interactive elements remain clickable */
+                /* Interactive elements remain clickable without blocking window dragging */
                 header button, header a, header input, nav button, nav a, 
                 bard-sidenav button, bard-sidenav a, [role="button"], [role="menuitem"],
-                [class*="badge"], [class*="action"] {
+                [class*="badge"], [class*="action"], rich-textarea, textarea, input {
                     -webkit-app-region: no-drag;
-                }
-
-                /* Responsive auto-adjust layout: smoothly reflow chat container and sidebars */
-                main, [role="main"], .main-content, .chat-window, .infinite-scroller, .chat-history {
-                    max-width: 100% !important;
-                    box-sizing: border-box !important;
                 }
 
                 /* Native font and emoji rendering for NotebookLM and chats */
