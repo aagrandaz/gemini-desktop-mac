@@ -47,7 +47,7 @@ enum UserScripts {
         )
     }
 
-    /// Injects CSS and JS for native macOS traffic lights and draggable titlebar area
+    /// Injects CSS and JS for native macOS traffic lights, top safe area padding, and draggable titlebar
     private static func createWindowDragScript() -> WKUserScript {
         let source = """
         (function() {
@@ -55,20 +55,36 @@ enum UserScripts {
 
             const style = document.createElement('style');
             style.textContent = `
-                /* Traffic light spacing at top of sidebar */
-                bard-sidenav, side-navigation, side-navigation-v2, [role="navigation"], .side-nav, aside {
-                    padding-top: 36px !important;
+                /* Safe area top padding for macOS titlebar & traffic lights across the entire window */
+                html, body {
+                    padding-top: 32px !important;
+                    box-sizing: border-box !important;
+                    height: 100vh !important;
+                    overflow-x: hidden !important;
                 }
 
-                /* Draggable top header area */
-                header, nav[role="navigation"], .app-header {
+                /* Ensure all content containers adjust to full height minus top titlebar */
+                body > * {
+                    box-sizing: border-box !important;
+                }
+
+                /* Draggable top header area matching macOS HIG */
+                header, nav[role="navigation"], .app-header, [class*="top-bar"] {
                     -webkit-app-region: drag;
                     user-select: none;
                 }
 
                 /* Interactive elements remain clickable */
-                header button, header a, header input, nav button, nav a, bard-sidenav button, bard-sidenav a {
+                header button, header a, header input, nav button, nav a, 
+                bard-sidenav button, bard-sidenav a, [role="button"], [role="menuitem"],
+                [class*="badge"], [class*="action"] {
                     -webkit-app-region: no-drag;
+                }
+
+                /* Responsive auto-adjust layout: smoothly reflow chat container and sidebars */
+                main, [role="main"], .main-content, .chat-window, .infinite-scroller, .chat-history {
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
                 }
 
                 /* Native font and emoji rendering for NotebookLM and chats */
