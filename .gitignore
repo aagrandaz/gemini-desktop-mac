@@ -90,3 +90,5 @@ Gemini Desktop.app/
 GeminiDesktopBinary
 *.log
 .swiftpm/
+docs/
+
