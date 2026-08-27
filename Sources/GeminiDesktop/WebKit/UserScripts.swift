@@ -47,7 +47,7 @@ enum UserScripts {
         )
     }
 
-    /// Injects CSS and JS for native macOS traffic lights, top safe area padding, and draggable titlebar
+    /// Injects CSS and JS for native macOS typography, emoji rendering, and header interactivity
     private static func createWindowDragScript() -> WKUserScript {
         let source = """
         (function() {
@@ -55,66 +55,15 @@ enum UserScripts {
 
             const style = document.createElement('style');
             style.textContent = `
-                :root {
-                    --macos-titlebar-height: 42px;
-                }
-
-                /* Safe Area for macOS title bar across standard and absolute/fixed containers */
-                html, body {
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    width: 100vw !important;
-                    height: 100vh !important;
-                    overflow: hidden !important;
-                    box-sizing: border-box !important;
-                    background-color: #131314 !important;
-                }
-
-                /* Push Sidebar below traffic lights so there is ZERO collision */
-                bard-sidenav, side-navigation, side-navigation-v2, [role="navigation"], .side-nav, mat-sidenav, aside {
-                    top: var(--macos-titlebar-height) !important;
-                    height: calc(100vh - var(--macos-titlebar-height)) !important;
-                    box-sizing: border-box !important;
-                }
-
-                /* Push Main Content / Chat Pane below title bar so all task badges and headers are fully visible */
-                header, [role="banner"], .app-header, main, [role="main"], .main-content, .chat-window, mat-sidenav-content, .chat-history {
-                    top: var(--macos-titlebar-height) !important;
-                    box-sizing: border-box !important;
-                }
-
-                /* Responsive Auto-adjust Layout according to macOS SDK & HIG */
-                main, [role="main"], .main-content, .chat-window, .infinite-scroller, .chat-history, .conversation-container {
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    box-sizing: border-box !important;
-                }
-
-                /* Center chat conversation container smoothly */
-                .conversation-container, .chat-history, .infinite-scroller {
-                    margin-left: auto !important;
-                    margin-right: auto !important;
-                    max-width: min(100%, 960px) !important;
-                    box-sizing: border-box !important;
-                }
-
-                /* Draggable top header area matching macOS HIG */
-                header, nav[role="navigation"], .app-header, [class*="top-bar"], [role="banner"] {
-                    -webkit-app-region: drag;
-                    user-select: none;
-                }
-
-                /* Interactive elements remain clickable without blocking window dragging */
-                header button, header a, header input, nav button, nav a, 
-                bard-sidenav button, bard-sidenav a, [role="button"], [role="menuitem"],
-                [class*="badge"], [class*="action"], rich-textarea, textarea, input {
-                    -webkit-app-region: no-drag;
-                }
-
-                /* Native font and emoji rendering for NotebookLM and chats */
+                /* Native font and crisp emoji rendering for NotebookLM and chats */
                 body, button, input, textarea, select {
                     font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Apple Color Emoji', 'Segoe UI', Roboto, sans-serif !important;
                     -webkit-font-smoothing: antialiased;
+                }
+
+                /* Responsive auto-adjust layout: smoothly reflow chat container and sidebars */
+                main, [role="main"], .main-content, .chat-window, .infinite-scroller, .chat-history, .conversation-container {
+                    box-sizing: border-box !important;
                 }
             `;
             document.head.appendChild(style);

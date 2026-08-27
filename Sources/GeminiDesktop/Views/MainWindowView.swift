@@ -14,17 +14,24 @@ struct MainWindowView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Full-screen native WebKit container (identical to official macOS Gemini app)
+            // WebKit container with native 28pt top safe-area padding for macOS traffic lights
             GeminiWebView(webView: coordinator.webViewModel.wkWebView)
-                .ignoresSafeArea(.all, edges: .all)
+                .padding(.top, 28)
+                .ignoresSafeArea(.all, edges: [.horizontal, .bottom])
 
-            // Subtle loading indicator at the top
+            // Native Titlebar Draggable Area (uses shared WindowDragView)
+            WindowDragView()
+                .frame(height: 28)
+                .frame(maxWidth: .infinity)
+
+            // Subtle loading indicator
             if coordinator.webViewModel.isLoading {
                 ProgressView()
                     .progressViewStyle(.linear)
                     .tint(Color.accentColor)
                     .frame(height: 2)
                     .frame(maxWidth: .infinity)
+                    .padding(.top, 28)
                     .transition(.opacity)
             }
         }
