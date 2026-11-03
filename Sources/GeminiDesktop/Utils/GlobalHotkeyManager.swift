@@ -2,6 +2,8 @@
 //  GlobalHotkeyManager.swift
 //  GeminiDesktop
 //
+//  Autor: aagrandaz@gmail.com
+//
 
 import AppKit
 import Carbon

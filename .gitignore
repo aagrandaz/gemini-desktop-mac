@@ -91,4 +91,5 @@ GeminiDesktopBinary
 *.log
 .swiftpm/
 docs/
-
+dist/
+.agent/

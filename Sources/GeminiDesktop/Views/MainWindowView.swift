@@ -2,6 +2,8 @@
 //  MainWindowView.swift
 //  GeminiDesktop
 //
+//  Autor: aagrandaz@gmail.com
+//
 //  Created on 2026-08-25.
 //
 

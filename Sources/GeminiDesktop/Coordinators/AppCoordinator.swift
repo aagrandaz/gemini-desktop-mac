@@ -2,239 +2,169 @@
 //  AppCoordinator.swift
 //  GeminiDesktop
 //
-//  Created by alexcding on 2025-12-13.
+//  Autor: aagrandaz@gmail.com
 //
 
 import SwiftUI
 import AppKit
-import WebKit
+import Observation
+import GeminiCore
+import GeminiWebBridge
+import GeminiAppKit
+import GeminiUI
 
-extension Notification.Name {
-    static let openMainWindow = Notification.Name("openMainWindow")
-}
-
+/// Coordinador principal de la aplicación que implementa el patrón MVVM-C.
+/// Orquesta la navegación, el ciclo de vida de las ventanas y los flujos de interacción de alto nivel (Single Responsibility Principle).
 @Observable
-class AppCoordinator {
-    private var chatBar: ChatBarPanel?
-    var webViewModel = WebViewModel()
+@MainActor
+public final class AppCoordinator {
+    /// Modelo de navegación y estado de WebKit.
+    public let webViewModel: WebViewModel
+    /// Gestor responsable de las ventanas AppKit y paneles emergentes.
+    public let windowManager: WindowManaging
+    /// Repositorio de configuración y preferencias del usuario.
+    public let preferences: PreferencesStoring
+    /// Bus de eventos de la aplicación.
+    public let eventBus: AppEventStreaming
+    /// Administrador de combinaciones globales de teclas.
+    private let hotkeyManager: HotkeyManaging
+    /// Tarea asíncrona en segundo plano que procesa los eventos emitidos por el bus.
+    @ObservationIgnored
+    nonisolated(unsafe) private var eventTask: Task<Void, Never>?
 
-    var openWindowAction: ((String) -> Void)?
-    var alwaysOnTop: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
-
-    var canGoBack: Bool { webViewModel.canGoBack }
-    var canGoForward: Bool { webViewModel.canGoForward }
-
-    init() {
-        // Observe notifications for window opening
-        NotificationCenter.default.addObserver(forName: .openMainWindow, object: nil, queue: .main) { [weak self] _ in
-            self?.openMainWindow()
-        }
+    /// Indica si la ventana principal tiene activa la flotabilidad permanente (Always-on-Top).
+    public var alwaysOnTop: Bool {
+        preferences.alwaysOnTop
     }
 
-    // MARK: - Navigation
+    /// Inicializador con inyección de dependencias.
+    /// - Parameters:
+    ///   - webViewModel: Instancia de `WebViewModel`.
+    ///   - windowManager: Gestor de ventanas conformante a `WindowManaging`.
+    ///   - preferences: Repositorio conformante a `PreferencesStoring`.
+    ///   - eventBus: Bus reactivo conformante a `AppEventStreaming`.
+    ///   - hotkeyManager: Gestor de atajos conformante a `HotkeyManaging`.
+    public init(
+        webViewModel: WebViewModel,
+        windowManager: WindowManaging,
+        preferences: PreferencesStoring,
+        eventBus: AppEventStreaming,
+        hotkeyManager: HotkeyManaging
+    ) {
+        self.webViewModel = webViewModel
+        self.windowManager = windowManager
+        self.preferences = preferences
+        self.eventBus = eventBus
+        self.hotkeyManager = hotkeyManager
 
-    func goBack() { webViewModel.goBack() }
-    func goForward() { webViewModel.goForward() }
-    func goHome() { webViewModel.loadHome() }
-    func reload() { webViewModel.reload() }
-    func openNewChat() { webViewModel.openNewChat() }
-    func loadURL(_ urlString: String) { webViewModel.loadURL(urlString) }
-    func submitPrompt(_ text: String) { webViewModel.submitPrompt(text) }
-
-    // MARK: - Zoom
-
-    func zoomIn() { webViewModel.zoomIn() }
-    func zoomOut() { webViewModel.zoomOut() }
-    func resetZoom() { webViewModel.resetZoom() }
-
-    // MARK: - Always on Top
-
-    func toggleAlwaysOnTop() {
-        alwaysOnTop.toggle()
-        UserDefaults.standard.set(alwaysOnTop, forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
-        applyAlwaysOnTop()
+        setupEventStream()
+        setupGlobalHotkey()
     }
 
-    func applyAlwaysOnTop() {
-        let level: NSWindow.Level = alwaysOnTop ? .floating : .normal
-
-        // Apply to main window
-        if let mainWindow = findMainWindow() {
-            mainWindow.level = level
-        }
-
-        // Chat bar panel is always floating by design
-    }
-
-    // MARK: - Window Management
-
-    func bringMainWindowToFront() {
-        openMainWindow()
-    }
-
-    // MARK: - Chat Bar
-
-    func showChatBar() {
-        // Hide main window when showing chat bar
-        closeMainWindow()
-
-        let position = PanelPosition.current
-
-        if let bar = chatBar {
-            // Reposition unless "Remember last position" is selected
-            if position != .rememberLast {
-                positionChatBar(bar, position: position)
-            }
-            bar.makeKeyAndOrderFront(nil)
-            bar.checkAndAdjustSize()
-            return
-        }
-
-        let contentView = ChatBarView(
-            webView: webViewModel.wkWebView,
-            onExpandToMain: { [weak self] in
-                self?.expandToMainWindow()
-            }
-        )
-        let hostingView = NSHostingView(rootView: contentView)
-        let bar = ChatBarPanel(contentView: hostingView)
-
-        // Position based on setting
-        positionChatBar(bar, position: position)
-
-        bar.makeKeyAndOrderFront(nil)
-        chatBar = bar
-    }
-
-    /// Positions the chat bar based on the given position setting
-    private func positionChatBar(_ bar: ChatBarPanel, position: PanelPosition) {
-        guard let screen = NSScreen.screenAtMouseLocation() ?? NSScreen.main else { return }
-
-        if position == .rememberLast {
-            let defaults = UserDefaults.standard
-            if defaults.object(forKey: UserDefaultsKeys.panelX.rawValue) != nil,
-               defaults.object(forKey: UserDefaultsKeys.panelY.rawValue) != nil {
-                let saved = NSPoint(x: defaults.double(forKey: UserDefaultsKeys.panelX.rawValue),
-                                    y: defaults.double(forKey: UserDefaultsKeys.panelY.rawValue))
-                let center = NSPoint(x: saved.x + bar.frame.width / 2, y: saved.y + bar.frame.height / 2)
-                if NSScreen.screenStrictly(containing: center) != nil {
-                    bar.setFrameOrigin(saved)
-                    return
-                }
-            }
-        }
-
-        let origin = screen.point(for: bar.frame.size, position: position, dockOffset: Constants.dockOffset)
-        bar.setFrameOrigin(origin)
-    }
-
-    /// Repositions the chat bar to its configured position
-    func resetChatBarPosition() {
-        guard let bar = chatBar else { return }
-        positionChatBar(bar, position: PanelPosition.current)
-    }
-
-    func hideChatBar() {
-        chatBar?.orderOut(nil)
-    }
-
-    func closeMainWindow() {
-        // Find and hide the main window
-        for window in NSApp.windows {
-            if window.identifier?.rawValue == Constants.mainWindowIdentifier || window.title == Constants.mainWindowTitle {
-                if !(window is NSPanel) {
-                    window.orderOut(nil)
-                }
-            }
-        }
-    }
-
-    func toggleChatBar() {
-        if let bar = chatBar, bar.isVisible {
-            hideChatBar()
-        } else {
-            showChatBar()
-        }
-    }
-
-    func expandToMainWindow() {
-        // Capture the screen where the chat bar is located before hiding it
-        let targetScreen = chatBar.flatMap { bar -> NSScreen? in
-            let center = NSPoint(x: bar.frame.midX, y: bar.frame.midY)
-            return NSScreen.screen(containing: center)
-        } ?? NSScreen.main
-
-        hideChatBar()
-        openMainWindow(on: targetScreen)
-    }
-
-    func openMainWindow(on targetScreen: NSScreen? = nil) {
-        // Hide chat bar first - WebView can only be in one view hierarchy
-        hideChatBar()
-
-        let hideDockIcon = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hideDockIcon.rawValue)
-        if !hideDockIcon {
-            NSApp.setActivationPolicy(.regular)
-        }
-
-        // Find existing main window (may be hidden/suppressed)
-        let mainWindow = findMainWindow()
-
-        if let window = mainWindow {
-            // Window exists - show it (works for suppressed windows too)
-            if let screen = targetScreen {
-                centerWindow(window, on: screen)
-            }
-            window.makeKeyAndOrderFront(nil)
-        } else if let openWindowAction = openWindowAction {
-            // Window doesn't exist yet - use SwiftUI openWindow to create it
-            openWindowAction("main")
-            // Position newly created window with retry mechanism
-            if let screen = targetScreen {
-                centerNewlyCreatedWindow(on: screen)
-            }
-        }
-
-        applyAlwaysOnTop()
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    /// Finds the main window by identifier or title
-    private func findMainWindow() -> NSWindow? {
-        NSApp.windows.first {
-            $0.identifier?.rawValue == Constants.mainWindowIdentifier || $0.title == Constants.mainWindowTitle
-        }
-    }
-
-    /// Centers a window on the specified screen
-    private func centerWindow(_ window: NSWindow, on screen: NSScreen) {
-        let origin = screen.centerPoint(for: window.frame.size)
-        window.setFrameOrigin(origin)
-    }
-
-    /// Centers a newly created window on the target screen with retry mechanism
-    private func centerNewlyCreatedWindow(on screen: NSScreen, attempt: Int = 1) {
-        let maxAttempts = 5
-        let retryDelay = 0.05 // 50ms between attempts
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) { [weak self] in
+    /// Configura la suscripción al flujo asíncrono de eventos de la aplicación.
+    private func setupEventStream() {
+        eventTask = Task { [weak self] in
             guard let self = self else { return }
-
-            if let window = self.findMainWindow() {
-                self.centerWindow(window, on: screen)
-                self.applyAlwaysOnTop()
-            } else if attempt < maxAttempts {
-                // Window not found yet, retry
-                self.centerNewlyCreatedWindow(on: screen, attempt: attempt + 1)
+            for await event in self.eventBus.stream() {
+                guard !Task.isCancelled else { break }
+                self.handle(event: event)
             }
         }
     }
-}
 
-extension AppCoordinator {
-    struct Constants {
-        static let dockOffset: CGFloat = 50
-        static let mainWindowIdentifier = "main"
-        static let mainWindowTitle = "Gemini Desktop"
+    /// Registra la acción del atajo global para alternar la visibilidad de la barra de chat.
+    private func setupGlobalHotkey() {
+        hotkeyManager.registerDefaultShortcut { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.toggleChatBar()
+            }
+        }
+    }
+
+    /// Procesa y despacha las acciones correspondientes a cada evento del bus.
+    /// - Parameter event: Evento `AppEvent` recibido.
+    public func handle(event: AppEvent) {
+        switch event {
+        case .openMainWindow:
+            openMainWindow()
+        case .openSettings, .toggleSidebar:
+            break
+        }
+    }
+
+    // MARK: - Window Routing
+
+    /// Registra la acción `OpenWindowAction` provista por el entorno SwiftUI.
+    /// - Parameter action: Clausura con el identificador de la ventana a abrir.
+    public func registerOpenWindowAction(_ action: @escaping (String) -> Void) {
+        windowManager.openWindowAction = action
+    }
+
+    /// Despliega el panel flotante de chat bar, instanciando la vista SwiftUI correspondiente.
+    public func showChatBar() {
+        windowManager.showChatBar { [weak self] in
+            guard let self = self else { return NSView() }
+            let view = ChatBarView(
+                webView: self.webViewModel.wkWebView,
+                onExpandToMain: { [weak self] in
+                    self?.expandToMainWindow()
+                }
+            )
+            return NSHostingView(rootView: view)
+        }
+    }
+
+    /// Oculta el panel flotante de chat bar.
+    public func hideChatBar() {
+        windowManager.hideChatBar()
+    }
+
+    /// Alterna el estado de visibilidad del panel flotante de chat bar.
+    public func toggleChatBar() {
+        windowManager.toggleChatBar { [weak self] in
+            guard let self = self else { return NSView() }
+            let view = ChatBarView(
+                webView: self.webViewModel.wkWebView,
+                onExpandToMain: { [weak self] in
+                    self?.expandToMainWindow()
+                }
+            )
+            return NSHostingView(rootView: view)
+        }
+    }
+
+    /// Transiciona el chat bar hacia la ventana principal en el mismo monitor.
+    public func expandToMainWindow() {
+        windowManager.expandToMainWindow()
+    }
+
+    /// Abre y enfoca la ventana principal de la aplicación.
+    public func openMainWindow() {
+        windowManager.openMainWindow(on: nil)
+    }
+
+    /// Trae la ventana principal al frente del sistema.
+    public func bringMainWindowToFront() {
+        windowManager.bringMainWindowToFront()
+    }
+
+    /// Alterna la configuración de Always-on-Top y la delega al gestor de ventanas.
+    public func toggleAlwaysOnTop() {
+        preferences.alwaysOnTop.toggle()
+        windowManager.applyAlwaysOnTop(preferences.alwaysOnTop)
+    }
+
+    /// Configura la política de activación de macOS en el arranque (.regular o .accessory).
+    public func configureLaunchPolicy() {
+        windowManager.configureLaunchActivationPolicy()
+    }
+
+    /// Alias para compatibilidad con llamadas explícitas a la política de activación.
+    public func configureLaunchActivationPolicy() {
+        configureLaunchPolicy()
+    }
+
+    deinit {
+        eventTask?.cancel()
     }
 }

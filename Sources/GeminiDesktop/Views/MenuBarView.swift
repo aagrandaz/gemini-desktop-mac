@@ -1,3 +1,7 @@
+//
+//  Autor: aagrandaz@gmail.com
+//
+
 import SwiftUI
 import AppKit
 

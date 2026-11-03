@@ -2,6 +2,8 @@
 //  NSScreen+Extensions.swift
 //  GeminiDesktop
 //
+//  Autor: aagrandaz@gmail.com
+//
 //  Created by alexcding on 2025-12-23.
 //
 

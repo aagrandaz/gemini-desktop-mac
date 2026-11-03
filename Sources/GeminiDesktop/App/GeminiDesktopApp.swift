@@ -2,24 +2,55 @@
 //  GeminiDesktopApp.swift
 //  GeminiDesktop
 //
-//  Created by alexcding on 2025-12-13.
+//  Autor: aagrandaz@gmail.com
 //
 
 import SwiftUI
 import AppKit
-import Combine
+import GeminiCore
+import GeminiWebBridge
+import GeminiAppKit
+import GeminiUI
 
-// MARK: - Main App
+private typealias ViewState<Value> = SwiftUI.State<Value>
+
+/// Punto de entrada principal (`@main`) de la aplicación Gemini Desktop para macOS.
+/// Inicializa el contenedor de dependencias, define las escenas (`Window`, `Settings`, `MenuBarExtra`) y los comandos de menú.
 @main
 struct GeminiDesktopApp: App {
+    /// Adaptador del delegado de aplicación nativo AppKit.
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State var coordinator = AppCoordinator()
-    @Environment(\.openWindow) private var openWindow
+    /// Contenedor de inversión de control que mantiene vivas las dependencias centrales.
+    @ViewState private var container: DependencyContainer
 
+    /// Inicializador principal de la estructura de la aplicación.
+    init() {
+        let env = DependencyContainer()
+        self._container = ViewState(initialValue: env)
+        env.preferences.appTheme.apply()
+    }
+
+    /// Definición declarativa de las escenas de SwiftUI.
     var body: some Scene {
-        Window(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
-            MainWindowView(coordinator: $coordinator)
-                .frame(minWidth: Constants.mainWindowMinWidth, minHeight: Constants.mainWindowMinHeight)
+        let coordinator = container.coordinator
+        let webViewModel = container.webViewModel
+        let preferences = container.preferences
+        let eventBus = container.eventBus
+
+        // Ventana Principal
+        Window(WindowManager.Constants.mainWindowTitle, id: Constants.mainWindowID) {
+            MainWindowView(
+                webViewModel: webViewModel,
+                eventBus: eventBus,
+                onRegisterOpenWindow: { action in
+                    coordinator.registerOpenWindowAction(action)
+                }
+            )
+            .frame(minWidth: Constants.mainWindowMinWidth, minHeight: Constants.mainWindowMinHeight)
+            .onAppear {
+                appDelegate.preferences = preferences
+                appDelegate.eventBus = eventBus
+            }
         }
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)
         .windowStyle(.hiddenTitleBar)
@@ -27,12 +58,12 @@ struct GeminiDesktopApp: App {
             // Archivo Menu
             CommandGroup(replacing: .newItem) {
                 Button("Nuevo chat") {
-                    coordinator.openNewChat()
+                    webViewModel.openNewChat()
                 }
                 .keyboardShortcut("n", modifiers: .command)
 
                 Button("Nuevo chat temporal") {
-                    coordinator.loadURL("https://gemini.google.com/app?temporary=true")
+                    webViewModel.loadURL("https://gemini.google.com/app?temporary=true")
                 }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
 
@@ -51,21 +82,17 @@ struct GeminiDesktopApp: App {
             CommandGroup(after: .pasteboard) {
                 Divider()
 
-                Button("Modelo siguiente") {
-                    // Quick model switcher
-                }
-                .keyboardShortcut("}", modifiers: [.command, .shift])
+                Button("Modelo siguiente") {}
+                    .keyboardShortcut("}", modifiers: [.command, .shift])
 
-                Button("Modelo anterior") {
-                    // Quick model switcher
-                }
-                .keyboardShortcut("{", modifiers: [.command, .shift])
+                Button("Modelo anterior") {}
+                    .keyboardShortcut("{", modifiers: [.command, .shift])
             }
 
             // Visualización Menu
             CommandGroup(after: .toolbar) {
                 Button("Activar o desactivar la barra lateral") {
-                    NotificationCenter.default.post(name: .init("ToggleSidebar"), object: nil)
+                    eventBus.send(.toggleSidebar)
                 }
                 .keyboardShortcut("s", modifiers: [.command, .control])
 
@@ -74,40 +101,40 @@ struct GeminiDesktopApp: App {
                 }
 
                 Button("Volver a cargar") {
-                    coordinator.reload()
+                    webViewModel.reload()
                 }
                 .keyboardShortcut("r", modifiers: .command)
 
                 Divider()
 
                 Button("Aumentar el tamaño del texto") {
-                    coordinator.zoomIn()
+                    webViewModel.zoomIn()
                 }
                 .keyboardShortcut("+", modifiers: .command)
 
                 Button("Cambiar texto al tamaño normal") {
-                    coordinator.resetZoom()
+                    webViewModel.resetZoom()
                 }
                 .keyboardShortcut("0", modifiers: .command)
 
                 Button("Reducir el tamaño del texto") {
-                    coordinator.zoomOut()
+                    webViewModel.zoomOut()
                 }
                 .keyboardShortcut("-", modifiers: .command)
 
                 Divider()
 
                 Button("Página anterior") {
-                    coordinator.goBack()
+                    webViewModel.goBack()
                 }
                 .keyboardShortcut("[", modifiers: .command)
-                .disabled(!coordinator.canGoBack)
+                .disabled(!webViewModel.canGoBack)
 
                 Button("Página siguiente") {
-                    coordinator.goForward()
+                    webViewModel.goForward()
                 }
                 .keyboardShortcut("]", modifiers: .command)
-                .disabled(!coordinator.canGoForward)
+                .disabled(!webViewModel.canGoForward)
 
                 Divider()
 
@@ -117,16 +144,16 @@ struct GeminiDesktopApp: App {
                 .keyboardShortcut("t", modifiers: [.command, .shift])
             }
 
-            // Custom Chats Menu
+            // Chats Menu
             CommandMenu("Chats") {
                 Section("Recientes") {
                     Button("Anteproyecto: Microservicio PLN") {
-                        coordinator.loadURL("https://gemini.google.com/app")
+                        webViewModel.loadURL("https://gemini.google.com/app")
                     }
                     .keyboardShortcut("1", modifiers: .command)
 
                     Button("Diseño y Planos Mueble TV") {
-                        coordinator.loadURL("https://gemini.google.com/app")
+                        webViewModel.loadURL("https://gemini.google.com/app")
                     }
                     .keyboardShortcut("2", modifiers: .command)
                 }
@@ -134,13 +161,11 @@ struct GeminiDesktopApp: App {
                 Divider()
 
                 Button("Ver todos los chats") {
-                    coordinator.loadURL("https://gemini.google.com/app")
+                    webViewModel.loadURL("https://gemini.google.com/app")
                 }
 
-                Button("Buscar...") {
-                    // Search in chats
-                }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
+                Button("Buscar...") {}
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
             }
 
             // Ayuda Menu
@@ -174,64 +199,56 @@ struct GeminiDesktopApp: App {
             }
         }
 
+        // Ventana de Ajustes / Preferencias
         Settings {
-            SettingsView(coordinator: $coordinator)
+            SettingsView(preferences: preferences, webViewModel: webViewModel)
         }
         .defaultSize(width: Constants.settingsWindowDefaultWidth, height: Constants.settingsWindowDefaultHeight)
 
+        // Elemento de la Barra de Menús del Sistema
         MenuBarExtra {
-            MenuBarView(coordinator: $coordinator)
+            MenuBarView(
+                preferences: preferences,
+                webViewModel: webViewModel,
+                onOpenMainWindow: { coordinator.openMainWindow() },
+                onToggleChatBar: { coordinator.toggleChatBar() },
+                onToggleAlwaysOnTop: { coordinator.toggleAlwaysOnTop() },
+                onRegisterOpenWindow: { action in
+                    coordinator.registerOpenWindowAction(action)
+                }
+            )
         } label: {
             Image(systemName: Constants.menuBarIcon)
                 .onAppear {
-                    let hideWindowAtLaunch = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hideWindowAtLaunch.rawValue)
-                    let hideDockIcon = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hideDockIcon.rawValue)
-
-                    if hideDockIcon || hideWindowAtLaunch {
-                        NSApp.setActivationPolicy(.accessory)
-                        if hideWindowAtLaunch {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.hideWindowDelay) {
-                                for window in NSApp.windows {
-                                    if window.identifier?.rawValue == Constants.mainWindowID || window.title == AppCoordinator.Constants.mainWindowTitle {
-                                        window.orderOut(nil)
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        NSApp.setActivationPolicy(.regular)
-                    }
+                    appDelegate.preferences = preferences
+                    appDelegate.eventBus = eventBus
+                    coordinator.configureLaunchPolicy()
                 }
         }
         .menuBarExtraStyle(.menu)
     }
-
-    init() {
-        // Apply saved theme on launch
-        AppTheme.current.apply()
-
-        let currentCoordinator = coordinator
-        GlobalHotkeyManager.shared.registerDefaultShortcut {
-            currentCoordinator.toggleChatBar()
-        }
-    }
 }
 
-// MARK: - Constants
 extension GeminiDesktopApp {
+    /// Constantes de diseño y dimensiones de ventanas.
     struct Constants {
-        // Main Window
+        /// Ancho mínimo de la ventana principal.
         static let mainWindowMinWidth: CGFloat = 800
+        /// Alto mínimo de la ventana principal.
         static let mainWindowMinHeight: CGFloat = 550
+        /// Ancho por defecto de la ventana principal.
         static let mainWindowDefaultWidth: CGFloat = 1100
+        /// Alto por defecto de la ventana principal.
         static let mainWindowDefaultHeight: CGFloat = 750
 
-        // Settings Window
+        /// Ancho por defecto de la ventana de ajustes.
         static let settingsWindowDefaultWidth: CGFloat = 720
+        /// Alto por defecto de la ventana de ajustes.
         static let settingsWindowDefaultHeight: CGFloat = 480
 
+        /// Identificador de escena para la ventana principal.
         static let mainWindowID = "main"
+        /// Nombre del ícono SF Symbol en la barra de menús.
         static let menuBarIcon = "sparkle"
-        static let hideWindowDelay: TimeInterval = 0.1
     }
 }
